@@ -194,18 +194,78 @@ EntryPoint:
 	ld (SPRITE3_X),a
 	ld a,LCD_HEIGHT/2+8
 	ld (SPRITE3_Y),a
-	ld a,PuckSpeed
+	ld a,-PuckSpeed
 	ld (PuckVelX),a
 	ld (PuckVelY),a
 	
 	; Turn on LCD
 	ld hl,LCDC
 	set $07,(hl)
-
+	
 MainLoop:
 	; First Wait for V-Blank
 	call WaitVBlank
+	
+	ld a,$ff
+	ld (OBJP0),a
+	
+_HandleInput:
+	; Handle Input
+	; Direction Button Reading
+	ld hl,JOYP
+	res $04,(hl)
+	
+	; Checking for Button Down
+_TestBtnDown:
+	bit $03,(hl)
+	jr nz,_TestBtnUp
+	ld a,(SPRITE1_Y)
+	add a,MoveSpeed
+	ld (SPRITE1_Y),a
 
+	; Check Bottom Limit
+	cp LCD_HEIGHT
+	jr c, _FinishedInputHandling
+	ld a,LCD_HEIGHT
+	ld (SPRITE1_Y),a
+	jr _FinishedInputHandling
+
+_TestBtnUp:
+	bit $02,(hl)
+	jp nz,_FinishedInputHandling
+	ld a,(SPRITE1_Y)
+	sub MoveSpeed
+	ld (SPRITE1_Y),a
+	
+	; Check Top Limit
+	cp $18
+	jr nc,_FinishedInputHandling
+	ld a,$18
+	ld (SPRITE1_Y),a
+	
+_FinishedInputHandling:
+	
+	; Update Player Paddle Position
+	ld a,(SPRITE1_Y)
+	sub $08
+	ld hl,SPRITE0_Y
+	ld (hl),a
+	ld a,(SPRITE1_Y)
+	add a,$08
+	ld hl,SPRITE2_Y
+	ld (hl),a
+	
+	; Scroll Background
+	ld a,(ScrollBackground)
+	inc a
+	ld (ScrollBackground),a
+	cp $05
+	jr nz,_PuckXMotion
+	ld a,$00
+	ld (ScrollBackground),a
+	ld hl,SCY
+	inc (hl)
+	
 	; Update Puck Horizontal Motion
 _PuckXMotion:
 	ld a,(PuckVelX)
@@ -264,20 +324,20 @@ _PuckTestBottomWall:
 	; Bounce Puck
 	ld a,-PuckSpeed
 	ld (PuckVelY),a
-	jr _HandleInput
+	jr _CheckPuckPlayerCol
 	
 	; Test Collision Top Wall
 _PuckTestTopWall:
 	ld a,(SPRITE3_Y)
 	cp $10
-	jr nc,_HandleInput
+	jr nc,_CheckPuckPlayerCol
 	ld a,$10
 	ld (SPRITE3_Y),a
 	
 	; Bounce Puck
 	ld a,PuckSpeed
 	ld (PuckVelY),a
-	jr _HandleInput
+	jr _CheckPuckPlayerCol
 
 _PuckSetToCenter:
 	ld a,LCD_WIDTH/2
@@ -285,62 +345,22 @@ _PuckSetToCenter:
 	ld a,LCD_HEIGHT/2+8
 	ld (SPRITE3_Y),a
 	
-_HandleInput:
-	; Handle Input
-	; Direction Button Reading
-	ld hl,JOYP
-	res $04,(hl)
-	
-	; Checking for Button Down
-_TestBtnDown:
-	bit $03,(hl)
-	jr nz,_TestBtnUp
-	ld a,(SPRITE1_Y)
-	add a,MoveSpeed
-	ld (SPRITE1_Y),a
-
-	; Check Bottom Limit
-	cp LCD_HEIGHT
-	jr c, _FinishedInputHandling
-	ld a,LCD_HEIGHT
-	ld (SPRITE1_Y),a
-	jr _FinishedInputHandling
-
-_TestBtnUp:
-	bit $02,(hl)
-	jp nz,_FinishedInputHandling
-	ld a,(SPRITE1_Y)
-	sub MoveSpeed
-	ld (SPRITE1_Y),a
-	
-	; Check Top Limit
-	cp $18
-	jr nc,_FinishedInputHandling
-	ld a,$18
-	ld (SPRITE1_Y),a
-	
-_FinishedInputHandling:
-	
-	; Update Player Paddle Position
-	ld a,(SPRITE1_Y)
-	sub $08
-	ld hl,SPRITE0_Y
-	ld (hl),a
-	ld a,(SPRITE1_Y)
+	; Check collision between Puck and Player Paddle
+_CheckPuckPlayerCol:
+	ld a,(SPRITE0_Y)
+	ld b,a
+	ld a,(SPRITE3_Y)
 	add a,$08
-	ld hl,SPRITE2_Y
-	ld (hl),a
-	
-	; Scroll Background
-	ld a,(ScrollBackground)
-	inc a
-	ld (ScrollBackground),a
-	cp $05
-	jr nz,_SkipScrollBackground
-	ld a,$00
-	ld (ScrollBackground),a
-	ld hl,SCY
-	inc (hl)
+	cp b
+	jr c,_SkipScrollBackground
+	ld a,(SPRITE2_Y)
+	ld b,a
+	ld a,(SPRITE3_Y)
+	sub $08
+	cp b
+	jr nc,_SkipScrollBackground
+	ld a,%01010101
+	ld (OBJP0),a
 	
 _SkipScrollBackground:
 	; After Sprite Update
