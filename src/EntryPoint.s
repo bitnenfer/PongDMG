@@ -113,16 +113,15 @@ EntryPoint:
 	; Load Tiles
 	ld bc,TileData
 	ld hl,VRAM_TILE_START
-	ld de,32
+	ld de,96
 	call MemCpy
 	
 	; Set Palette
-	ld hl,BGP
-	ld (hl),%00001000
-	ld hl,OBJP0
-	ld (hl),$FF
-	ld hl,OBJP1
-	ld (hl),$FF
+	ld a,%11010100
+	ld (BGP),a
+	ld a,%11101100
+	ld (OBJP0),a
+	ld (OBJP1),a
 	
 	; Clear Screen
 	ld hl,VRAM_BGMAP0_START
@@ -131,6 +130,12 @@ EntryPoint:
 	call MemSet
 	
 	; Initialize Player Paddle
+	ld a,$00
+	ld (SPRITE0_TILE),a
+	ld a,$04
+	ld (SPRITE1_TILE),a
+	ld a,$05
+	ld (SPRITE2_TILE),a
 	ld hl,SPRITE1_Y
 	ld (hl),LCD_HEIGHT / 2 + 2
 	ld hl,SPRITE0_X
@@ -188,7 +193,7 @@ EntryPoint:
 	ld (SCX),a
 	
 	; Initialize Puck
-	ld a,$19
+	ld a,$03
 	ld (SPRITE3_TILE),a
 	ld a,LCD_WIDTH/2
 	ld (SPRITE3_X),a
@@ -205,9 +210,6 @@ EntryPoint:
 MainLoop:
 	; First Wait for V-Blank
 	call WaitVBlank
-	
-	ld a,$ff
-	ld (OBJP0),a
 	
 _HandleInput:
 	; Handle Input
@@ -359,8 +361,11 @@ _CheckPuckPlayerCol:
 	sub $08
 	cp b
 	jr nc,_SkipScrollBackground
-	ld a,%01010101
-	ld (OBJP0),a
+	ld a,(SPRITE3_X)
+	cp $18
+	jr nc,_SkipScrollBackground
+	ld a,PuckSpeed
+	ld (PuckVelX),a
 	
 _SkipScrollBackground:
 	; After Sprite Update
@@ -370,11 +375,14 @@ _SkipScrollBackground:
 
 	; Static Data
 TileData:
-    DB $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
-    DB $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+    DB $3C, $3C, $7E, $7E, $E7, $FF, $DB, $FF, $DB, $FF, $DB, $FF, $DB, $FF, $DB, $FF
+    DB $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+    DB $00, $18, $00, $18, $00, $18, $00, $18, $00, $18, $00, $18, $00, $18, $00, $18
+    DB $3C, $3C, $66, $7E, $DB, $FF, $A5, $FF, $A5, $FF, $DB, $FF, $66, $7E, $3C, $3C
+    DB $DB, $FF, $DB, $FF, $DB, $FF, $DB, $FF, $DB, $FF, $DB, $FF, $DB, $FF, $DB, $FF
+    DB $DB, $FF, $DB, $FF, $DB, $FF, $DB, $FF, $DB, $FF, $E7, $FF, $7E, $7E, $3C, $3C
 
 	lib Utils
 	lib ShadowOAM
 	lib Variables
-	
 	
