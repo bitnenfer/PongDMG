@@ -88,8 +88,8 @@ StartDMA	equ $FF80
 MoveSpeed	equ $02
 PuckSpeed 	equ $01
 		
-Main		group $00
-			org $0150
+Main	group $00
+		org $0150
 	
 	; Code
 EntryPoint:
@@ -136,50 +136,47 @@ EntryPoint:
 	ld (SPRITE1_TILE),a
 	ld a,$05
 	ld (SPRITE2_TILE),a
-	ld hl,SPRITE1_Y
-	ld (hl),LCD_HEIGHT / 2 + 2
-	ld hl,SPRITE0_X
-	ld (hl),$10
-	ld hl,SPRITE1_X
-	ld (hl),$10
-	ld hl,SPRITE2_X
-	ld (hl),$10
+	ld a,LCD_WIDTH/2+2
+	ld (SPRITE1_Y),a
+	ld a,$10
+	ld (SPRITE0_X),a
+	ld (SPRITE1_X),a
+	ld (SPRITE2_X),a
+	
+	; Initialize CPU Paddle
+	ld a,$00
+	ld (SPRITE4_TILE),a
+	ld a,$04
+	ld (SPRITE5_TILE),a
+	ld a,$05
+	ld (SPRITE6_TILE),a
+	ld a,LCD_WIDTH/2+2
+	ld (SPRITE5_Y),a
+	ld a,LCD_WIDTH-$8
+	ld (SPRITE4_X),a
+	ld (SPRITE5_X),a
+	ld (SPRITE6_X),a
 	
 	; Set Middle Line
-	ld hl, $9809
-	ld (hl),$02
-	ld hl, $9849
-	ld (hl),$02
-	ld hl, $9889
-	ld (hl),$02
-	ld hl, $98C9
-	ld (hl),$02
-	ld hl, $9909
-	ld (hl),$02
-	ld hl, $9949
-	ld (hl),$02
-	ld hl, $9989
-	ld (hl),$02
-	ld hl, $99C9
-	ld (hl),$02
-	ld hl, $9A09
-	ld (hl),$02
-	ld hl, $9A49
-	ld (hl),$02
-	ld hl, $9A89
-	ld (hl),$02
-	ld hl, $9AC9
-	ld (hl),$02
-	ld hl, $9B09
-	ld (hl),$02
-	ld hl, $9B49
-	ld (hl),$02
-	ld hl, $9B89
-	ld (hl),$02
-	ld hl, $9BC9
-	ld (hl),$02
-	ld hl,ScrollBackground
-	ld (hl),$00
+	ld a,$02
+	ld ($9809),a
+	ld ($9849),a
+	ld ($9889),a
+	ld ($98C9),a
+	ld ($9909),a
+	ld ($9949),a
+	ld ($9989),a
+	ld ($99C9),a
+	ld ($9A09),a
+	ld ($9A49),a
+	ld ($9A89),a
+	ld ($9AC9),a
+	ld ($9B09),a
+	ld ($9B49),a
+	ld ($9B89),a
+	ld ($9BC9),a
+	ld a,$00
+	ld (ScrollBackground),a
 	
 	; Reset ScrollX to avoid doing Reset Hardware 
 	; every time
@@ -250,12 +247,51 @@ _FinishedInputHandling:
 	; Update Player Paddle Position
 	ld a,(SPRITE1_Y)
 	sub $08
-	ld hl,SPRITE0_Y
-	ld (hl),a
+	ld (SPRITE0_Y),a
 	ld a,(SPRITE1_Y)
 	add a,$08
-	ld hl,SPRITE2_Y
-	ld (hl),a
+	ld (SPRITE2_Y),a
+
+	; Handle CPU Paddle """""AI"""""
+_CheckCPUMovementDown:
+	ld a,(SPRITE3_Y)
+	ld b,a
+	ld a,(SPRITE5_Y)
+	cp b
+	jr nc,_CheckCPUMovementUp
+	inc a
+	ld (SPRITE5_Y),a
+	
+	; Check Bottom Limit
+	cp LCD_HEIGHT
+	jr c, _UpdateCPUPaddlePos
+	ld a,LCD_HEIGHT
+	ld (SPRITE5_Y),a
+	jr _UpdateCPUPaddlePos
+
+_CheckCPUMovementUp:
+	ld a,(SPRITE3_Y)
+	ld b,a
+	ld a,(SPRITE5_Y)
+	cp b
+	jr c,_UpdateCPUPaddlePos
+	dec a
+	ld (SPRITE5_Y),a
+	
+	; Check Top Limit
+	cp $18
+	jr nc,_UpdateCPUPaddlePos
+	ld a,$18
+	ld (SPRITE5_Y),a
+	
+_UpdateCPUPaddlePos:
+	; Update CPU Paddle Position
+	ld a,(SPRITE5_Y)
+	sub $08
+	ld (SPRITE4_Y),a
+	ld a,(SPRITE5_Y)
+	add a,$08
+	ld (SPRITE6_Y),a
 	
 	; Scroll Background
 	ld a,(ScrollBackground)
@@ -296,9 +332,9 @@ _PuckTestRightWall:
 	; Lost game
 	ld a,-PuckSpeed
 	ld (PuckVelX),a
-	jr _PuckSetToCenter
+	; TODO: We should increment Player score
 
-	; We should increment Player score
+	jr _PuckSetToCenter
 	
 	; Test Collision Left Wall
 _PuckTestLeftWall:
@@ -311,9 +347,9 @@ _PuckTestLeftWall:
 	; Lost game
 	ld a,PuckSpeed
 	ld (PuckVelX),a
-	jr _PuckSetToCenter
+	; TODO: We should increment CPU score
 
-	; We should increment CPU score
+	jr _PuckSetToCenter
 	
 	; Test Collision Bottom Wall
 _PuckTestBottomWall:
@@ -326,26 +362,32 @@ _PuckTestBottomWall:
 	; Bounce Puck
 	ld a,-PuckSpeed
 	ld (PuckVelY),a
-	jr _CheckPuckPlayerCol
+	jr _TestCollision
 	
 	; Test Collision Top Wall
 _PuckTestTopWall:
 	ld a,(SPRITE3_Y)
 	cp $10
-	jr nc,_CheckPuckPlayerCol
+	jr nc,_TestCollision
 	ld a,$10
 	ld (SPRITE3_Y),a
 	
 	; Bounce Puck
 	ld a,PuckSpeed
 	ld (PuckVelY),a
-	jr _CheckPuckPlayerCol
+	jr _TestCollision
 
 _PuckSetToCenter:
 	ld a,LCD_WIDTH/2
 	ld (SPRITE3_X),a
 	ld a,LCD_HEIGHT/2+8
 	ld (SPRITE3_Y),a
+	
+	; Check which paddle needs collision test
+_TestCollision:
+	ld a,(PuckVelX)
+	cp -PuckSpeed
+	jr nz,_CheckPuckCPUCol
 	
 	; Check collision between Puck and Player Paddle
 _CheckPuckPlayerCol:
@@ -365,6 +407,26 @@ _CheckPuckPlayerCol:
 	cp $18
 	jr nc,_SkipScrollBackground
 	ld a,PuckSpeed
+	ld (PuckVelX),a
+	
+	; Check collision between Puck and CPU Paddle
+_CheckPuckCPUCol:
+	ld a,(SPRITE4_Y)
+	ld b,a
+	ld a,(SPRITE3_Y)
+	add a,$08
+	cp b
+	jr c,_SkipScrollBackground
+	ld a,(SPRITE6_Y)
+	ld b,a
+	ld a,(SPRITE3_Y)
+	sub $08
+	cp b
+	jr nc,_SkipScrollBackground
+	ld a,(SPRITE3_X)
+	cp LCD_WIDTH-$10
+	jr c,_SkipScrollBackground
+	ld a,-PuckSpeed
 	ld (PuckVelX),a
 	
 _SkipScrollBackground:
